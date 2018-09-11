@@ -3,7 +3,7 @@
 #include <string.h>
 #include <stdint.h>
 //declare all global variables (registers, pointers etc)
-char * IP; // instrnction pointer
+char * IP; // instruction pointer
 int initial;
 int a;
 //flags
@@ -18,8 +18,8 @@ typedef struct
         unsigned char high:4;
         unsigned char low:4;
     }bitfield_val;
-
-
+//PART 1: READING IN THE DATA FOR YOUR PROGRAM
+// take the .text directive, and place it at the specifc address in memory (no max value)
 void text_dir(char * ptr,char * start_addr,char * data)
 {
      bitfield_val * toStore = (bitfield_val*) ptr+strtol(start_addr,NULL,16); // point the bitfield at the region where you want to put the stuff in
@@ -49,22 +49,23 @@ void text_dir(char * ptr,char * start_addr,char * data)
             toStore=toStore+1; // iterate the bitfield to move to the next region
         }
 }
-
+// take the .byte directive, and place 1 byte of data in the specific address in memory
 void byte_dir(char * ptr,char * address,char * data)
 {
     int addr=strtol(address,NULL,16);
     int value=strtol(data,NULL,16);
     ptr[addr]=(char)value;
 }
-void long_dir(char * ptr, char * address, char * data) // still needs to be tested along with the string directive
+// take the .long directive, and store 4 bytes of data in the specific address in memory
+void long_dir(char * ptr, char * address, char * data)
 {
     int * toStore = (int *) ptr + strtol(address,NULL,16); // point this to the right region in memory
     int data_val=strtol(data,NULL,10); // convert the string value to a 4 btye value
     *toStore=data_val; // assign this region a long value
 }
+// take the .string directive, and store the data at the correct address in memory
 void string_dir(char * ptr,char* address, char * data)
 {
-    // ask if we need to do error checking for this project (most likely, we will and then i need to edit these 4 functions
     int len = strlen(data); // get the length of the string in question
     char newstring[len-1];
     newstring[len-2]='\0'; // make sure that it is a null terminated string
@@ -78,16 +79,20 @@ void string_dir(char * ptr,char* address, char * data)
             toStore=toStore+1;
         }
 }
+// PART 2: INSTRUCTIONS TO EXECUTE ONCE DATA IS LOADED 
+// continues the program
 void nop()
 {
     initial=initial+1;
 }
+// stops the program
 void halt(char * ptr)
 {
     free((void*)ptr);
     printf("Halt");
     return;
 }
+//register to register move (32 bit registers)
 void rrmovl(char * ptr, int * reg)
 {
     bitfield_val * registers= (bitfield_val*)&ptr[initial+1]; // point this at the relevant stuff
@@ -104,6 +109,7 @@ void rrmovl(char * ptr, int * reg)
             exit(10);
         }
 }
+//immediate to register move ( take 32 bit immediate, put it in the register)
 void irmovl(char * ptr, int * reg)
 {
     bitfield_val * values = (bitfield_val*)&ptr[initial+1]; // pointed at register in question
@@ -122,6 +128,7 @@ void irmovl(char * ptr, int * reg)
             exit(5);
         }
 }
+// register to memory move (move register contents to address in memory)
 void rmmovl(char * ptr,int * reg,char * start, int s) // s will be the size
 {
     bitfield_val * registers = (bitfield_val*)&ptr[initial+1]; // point it at the right spot in memory
@@ -144,6 +151,7 @@ void rmmovl(char * ptr,int * reg,char * start, int s) // s will be the size
             exit(8);
         }
 }
+//memory to register move (take 32 bits of memory, put it in register)
 void mrmovl(char * ptr, int * reg,char *start, int s)
 {
     bitfield_val * registers = (bitfield_val*)&ptr[initial+1];
@@ -166,6 +174,8 @@ void mrmovl(char * ptr, int * reg,char *start, int s)
             exit(30);
         }
 }
+//op1 are different operations that can be run between 2 registers, setting off flags
+// operations are add,subtract,and,xor,multiply,compare
 void op1(char * ptr, int * reg, int * flags)
 {
     // flags will go ZF,SF,OF (0,1,2)
@@ -314,7 +324,7 @@ void op1(char * ptr, int * reg, int * flags)
             }
         reg[registers->high]=product;
         break;
-    case 5:
+    case 5: // compare
          v1=reg[registers->high];
          v2=reg[registers->low];
         if(v1-v2==0)
@@ -341,6 +351,7 @@ void op1(char * ptr, int * reg, int * flags)
 }
     (initial)=(initial)+2;
 }
+// jump code, which is based on the conditions of the flags set
 void jxx(char * ptr,int * flags, char * start)
 {
     //look at the flags and get the values from there
@@ -420,7 +431,8 @@ void jxx(char * ptr,int * flags, char * start)
             exit(20);
     }
 }
-void call(char * ptr,int * reg,char * start,int s) // problem is how call is working!!!
+// call function to send you to new part of memory (used for recursive functions and such)
+void call(char * ptr,int * reg,char * start,int s) 
 {
     int * dest = (int*)(&ptr[initial+1]); // get the number
     // stack pointer is register 4
@@ -440,6 +452,7 @@ void call(char * ptr,int * reg,char * start,int s) // problem is how call is wor
         }
     (initial)=*dest;
 }
+// returns from the call instruction
 void ret(char * ptr, int * reg, int s)
 {
     if(reg[4]<0||reg[4]>s-1)
@@ -450,6 +463,7 @@ void ret(char * ptr, int * reg, int s)
     memcpy(&initial,&ptr[reg[4]],4);
     reg[4]=reg[4]+4;
 }
+// push value into the call stack 
 void pushl(char * ptr, int * reg, int s)
 {
     bitfield_val * field = (bitfield_val *)(&ptr[initial+1]);
@@ -470,6 +484,7 @@ void pushl(char * ptr, int * reg, int s)
         }
     (initial)=(initial)+2;
 }
+// pop value out of the call stack
 void popl(char * ptr, int * reg, int s)
 {
     bitfield_val * field = (bitfield_val *)(&ptr[initial+1]);
@@ -490,6 +505,7 @@ void popl(char * ptr, int * reg, int s)
         }
     (initial)=(initial)+2;
 }
+// read in input from the user
 void read(char * ptr,int * reg,int *flags, char * start)
 {
     bitfield_val * opcode = (bitfield_val*)(&ptr[initial]);
@@ -553,6 +569,7 @@ void read(char * ptr,int * reg,int *flags, char * start)
         }
 
 }
+// write input out onto the terminal screen
 void write(char * ptr, int * reg, char * start)
 {
     bitfield_val * opcode = (bitfield_val*)(&ptr[initial]);
@@ -596,6 +613,7 @@ void write(char * ptr, int * reg, char * start)
     return;
 
 }
+// perform a sign preserving byte to long move
 void movsbl(char * ptr,int * reg,char * start,int s)
 {
     bitfield_val * registers = (bitfield_val*)(&ptr[initial+1]);
@@ -610,6 +628,7 @@ void movsbl(char * ptr,int * reg,char * start,int s)
     reg[registers->low]=value;
     (initial)=(initial)+6;
 }
+// PART 3: EXECUTION OF THE PROGRAM IN THE MAIN MATHOD
 int main(int argc, char * argv[])
 {
     if(argc!=2)
@@ -643,7 +662,7 @@ int main(int argc, char * argv[])
         }while(ch!=EOF);
     fclose(f1);
     fp=fopen(argv[1],"r");
-    // use a for loop to go through the entire thing one by one, and read everything into the memory allocated1
+    // use a for loop to go through the entire thing one by one, and read everything into the memory allocated
     char directive[20];
     char size_str[20];
     int size;
@@ -663,6 +682,7 @@ int main(int argc, char * argv[])
     char input[500];
     int textfreq=0;
     int p=1;
+    // set up the memory
     while(fscanf(fp,"%s %s %[^\n]s",directive,address,input)==3)
     {
     p=p+1;
@@ -700,6 +720,7 @@ int main(int argc, char * argv[])
             exit(2);
         }
     bitfield_val * byte = (bitfield_val*) (&IP[initial]);
+    // execute the program
     while(!(byte->low==1 && byte->high==0))
         {
             byte = (bitfield_val*)&IP[initial];
