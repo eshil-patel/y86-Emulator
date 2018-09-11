@@ -626,7 +626,7 @@ int main(int argc, char * argv[])
     f1=fopen(argv[1],"r");
     if (f1==NULL)
         {
-           printf("error broooo");
+           printf("error: file is empty");
             exit(10);
         }
     int count=0;
